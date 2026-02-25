@@ -27,17 +27,12 @@ jobs:
         id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CAP_MIND_GH_TOKEN: ${{ secrets.CAP_MIND_GH_TOKEN }}
           INPUT_TAG: ${{ github.event.inputs.tag }}
           PAYLOAD_TAG: ${{ github.event.client_payload.tag }}
         run: |
           set -euo pipefail
 
-          if [ -n "${CAP_MIND_GH_TOKEN:-}" ]; then
-            export GH_TOKEN="${CAP_MIND_GH_TOKEN}"
-          else
-            export GH_TOKEN="${GITHUB_TOKEN}"
-          fi
+          export GH_TOKEN="${GITHUB_TOKEN}"
 
           TAG="${INPUT_TAG:-}"
           if [ -z "$TAG" ]; then
@@ -54,16 +49,16 @@ jobs:
 
           TAG_NAME="$(jq -r '.tag_name' /tmp/release.json)"
           VERSION="${TAG_NAME#cli-v}"
-          MAC_API_URL="$(jq -r '.assets[] | select(.name=="cap-macOS") | (.url // .apiUrl // empty)' /tmp/release.json)"
+          MAC_URL="$(jq -r '.assets[] | select(.name=="cap-macOS") | (.browser_download_url // empty)' /tmp/release.json)"
           MAC_DIGEST="$(jq -r '.assets[] | select(.name=="cap-macOS") | (.digest // empty)' /tmp/release.json)"
           MAC_SHA="${MAC_DIGEST#sha256:}"
-          CHECKSUMS_API_URL="$(jq -r '.assets[] | select(.name=="SHA256SUMS") | (.url // .apiUrl // empty)' /tmp/release.json)"
+          CHECKSUMS_URL="$(jq -r '.assets[] | select(.name=="SHA256SUMS") | (.browser_download_url // empty)' /tmp/release.json)"
 
           if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "null" ]; then
             echo "Missing tag_name in release payload."
             exit 1
           fi
-          if [ -z "$MAC_API_URL" ]; then
+          if [ -z "$MAC_URL" ]; then
             echo "Release ${TAG_NAME} is missing asset cap-macOS."
             echo "Available assets:"
             jq -r '.assets[].name' /tmp/release.json || true
@@ -71,16 +66,12 @@ jobs:
           fi
 
           if [ -z "$MAC_SHA" ] || [ "$MAC_SHA" = "$MAC_DIGEST" ]; then
-            if [ -z "$CHECKSUMS_API_URL" ]; then
+            if [ -z "$CHECKSUMS_URL" ]; then
               echo "Release ${TAG_NAME} is missing both cap-macOS digest and SHA256SUMS."
               exit 1
             fi
 
-            curl -fsSL \
-              -H "Accept: application/octet-stream" \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "$CHECKSUMS_API_URL" > /tmp/SHA256SUMS
+            curl -fsSL "$CHECKSUMS_URL" > /tmp/SHA256SUMS
 
             MAC_SHA="$(awk '$2=="cap-macOS"{print $1}' /tmp/SHA256SUMS | head -n 1)"
             if [ -z "$MAC_SHA" ]; then
@@ -91,31 +82,28 @@ jobs:
 
           echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "mac_api_url=${MAC_API_URL}" >> "$GITHUB_OUTPUT"
+          echo "mac_url=${MAC_URL}" >> "$GITHUB_OUTPUT"
           echo "mac_sha=${MAC_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Regenerate formula
         id: write_formula
         env:
           VERSION: ${{ steps.release.outputs.version }}
-          MAC_API_URL: ${{ steps.release.outputs.mac_api_url }}
+          MAC_URL: ${{ steps.release.outputs.mac_url }}
           MAC_SHA: ${{ steps.release.outputs.mac_sha }}
         run: |
           set -euo pipefail
 
           ruby <<'RUBY'
           version = ENV.fetch("VERSION")
-          mac_api_url = ENV.fetch("MAC_API_URL")
+          mac_url = ENV.fetch("MAC_URL")
           mac_sha = ENV.fetch("MAC_SHA")
 
           formula = <<~FORMULA
             class CapMind < Formula
               desc "CLI client for cap-mind"
               homepage "https://github.com/huyixi/cap-mind"
-              url "#{mac_api_url}", headers: [
-                "Accept: application/octet-stream",
-                "Authorization: token \#{ENV[\"HOMEBREW_GITHUB_API_TOKEN\"]}",
-              ]
+              url "#{mac_url}"
               version "#{version}"
               sha256 "#{mac_sha}"
 

@@ -1,10 +1,7 @@
 class CapMind < Formula
   desc "CLI client for cap-mind"
   homepage "https://github.com/huyixi/cap-mind"
-  url "https://api.github.com/repos/huyixi/cap-mind/releases/assets/362038329", headers: [
-    "Accept: application/octet-stream",
-    "Authorization: token #{ENV["HOMEBREW_GITHUB_API_TOKEN"]}",
-  ]
+  url "https://github.com/huyixi/cap-mind/releases/download/cli-v0.2.4/cap-macOS"
   version "0.2.4"
   sha256 "f922e79dcfc7e9b39c3989ea902646925a9c83296af2a476eb1db75e5b12ef53"
 

@@ -4,13 +4,6 @@ Homebrew tap for `cap-mind` CLI.
 
 ## Install
 
-`cap-mind` release assets are currently private on GitHub, so export a token
-with release read access before install:
-
-```bash
-export HOMEBREW_GITHUB_API_TOKEN=ghp_xxx
-```
-
 ```bash
 brew tap huyixi/tap
 brew install cap-mind
@@ -47,7 +40,3 @@ brew upgrade cap-mind
 
 This repo includes `.github/workflows/update-cap-mind.yml` to open/update a PR
 that bumps `Formula/cap-mind.rb` from the latest `huyixi/cap-mind` release.
-
-For private release access in CI, set repository secret:
-
-- `CAP_MIND_GH_TOKEN`: GitHub token with read access to `huyixi/cap-mind`
