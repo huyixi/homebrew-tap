@@ -1,0 +1,162 @@
+name: update-cap-mind
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to sync (for example: cli-v0.2.4). Empty means latest."
+        required: false
+        type: string
+  repository_dispatch:
+    types:
+      - cap-mind-release
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump-formula:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout tap
+        uses: actions/checkout@v4
+
+      - name: Resolve release metadata
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CAP_MIND_GH_TOKEN: ${{ secrets.CAP_MIND_GH_TOKEN }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          PAYLOAD_TAG: ${{ github.event.client_payload.tag }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${CAP_MIND_GH_TOKEN:-}" ]; then
+            export GH_TOKEN="${CAP_MIND_GH_TOKEN}"
+          else
+            export GH_TOKEN="${GITHUB_TOKEN}"
+          fi
+
+          TAG="${INPUT_TAG:-}"
+          if [ -z "$TAG" ]; then
+            TAG="${PAYLOAD_TAG:-}"
+          fi
+
+          if [ -n "$TAG" ]; then
+            API_PATH="repos/huyixi/cap-mind/releases/tags/${TAG}"
+          else
+            API_PATH="repos/huyixi/cap-mind/releases/latest"
+          fi
+
+          gh api -H "Accept: application/vnd.github+json" "$API_PATH" > /tmp/release.json
+
+          TAG_NAME="$(jq -r '.tag_name' /tmp/release.json)"
+          VERSION="${TAG_NAME#cli-v}"
+          MAC_API_URL="$(jq -r '.assets[] | select(.name=="cap-macOS") | .apiUrl' /tmp/release.json)"
+          MAC_DIGEST="$(jq -r '.assets[] | select(.name=="cap-macOS") | .digest' /tmp/release.json)"
+          MAC_SHA="${MAC_DIGEST#sha256:}"
+
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "null" ]; then
+            echo "Missing tag_name in release payload."
+            exit 1
+          fi
+          if [ -z "$MAC_API_URL" ] || [ "$MAC_API_URL" = "null" ]; then
+            echo "Release ${TAG_NAME} is missing asset cap-macOS."
+            exit 1
+          fi
+          if [ -z "$MAC_SHA" ] || [ "$MAC_SHA" = "null" ] || [ "$MAC_SHA" = "$MAC_DIGEST" ]; then
+            echo "Release ${TAG_NAME} is missing sha256 digest for cap-macOS."
+            exit 1
+          fi
+
+          echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "mac_api_url=${MAC_API_URL}" >> "$GITHUB_OUTPUT"
+          echo "mac_sha=${MAC_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Regenerate formula
+        id: write_formula
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          MAC_API_URL: ${{ steps.release.outputs.mac_api_url }}
+          MAC_SHA: ${{ steps.release.outputs.mac_sha }}
+        run: |
+          set -euo pipefail
+
+          ruby <<'RUBY'
+          version = ENV.fetch("VERSION")
+          mac_api_url = ENV.fetch("MAC_API_URL")
+          mac_sha = ENV.fetch("MAC_SHA")
+
+          formula = <<~FORMULA
+            class CapMind < Formula
+              desc "CLI client for cap-mind"
+              homepage "https://github.com/huyixi/cap-mind"
+              url "#{mac_api_url}", headers: [
+                "Accept: application/octet-stream",
+                "Authorization: token \#{ENV[\"HOMEBREW_GITHUB_API_TOKEN\"]}",
+              ]
+              version "#{version}"
+              sha256 "#{mac_sha}"
+
+              depends_on arch: :arm64
+              depends_on :macos
+
+              def install
+                bin.install "cap-macOS" => "cap"
+                bin.install_symlink "cap" => "cap-mind"
+              end
+
+              test do
+                output = shell_output("\#{bin}/cap --help")
+                assert_match "Usage:", output
+              end
+            end
+          FORMULA
+
+          File.write("Formula/cap-mind.rb", formula)
+          RUBY
+
+          if git diff --quiet -- Formula/cap-mind.rb; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate formula syntax
+        run: ruby -c Formula/cap-mind.rb
+
+      - name: Run brew checks when available
+        run: |
+          set -euo pipefail
+          if ! command -v brew >/dev/null 2>&1; then
+            echo "brew not found on runner, skipping brew style/audit."
+            exit 0
+          fi
+          brew style Formula/cap-mind.rb
+          if brew tap | grep -qx "huyixi/tap"; then
+            brew untap huyixi/tap
+          fi
+          brew tap --custom-remote huyixi/tap "$PWD"
+          HOMEBREW_NO_AUTO_UPDATE=1 brew audit --strict --tap=huyixi/tap
+
+      - name: Create pull request
+        if: steps.write_formula.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/bump-cap-mind-${{ steps.release.outputs.version }}
+          title: "chore: bump cap-mind to ${{ steps.release.outputs.tag }}"
+          commit-message: "chore: bump cap-mind to ${{ steps.release.outputs.tag }}"
+          body: |
+            Automated formula update from `huyixi/cap-mind` release `${{ steps.release.outputs.tag }}`.
+
+            Updated fields:
+            - `version`
+            - `url`
+            - `sha256`
+
+      - name: No-op notice
+        if: steps.write_formula.outputs.changed != 'true'
+        run: echo "Formula is already up to date."
