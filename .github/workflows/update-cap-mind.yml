@@ -54,21 +54,39 @@ jobs:
 
           TAG_NAME="$(jq -r '.tag_name' /tmp/release.json)"
           VERSION="${TAG_NAME#cli-v}"
-          MAC_API_URL="$(jq -r '.assets[] | select(.name=="cap-macOS") | .apiUrl' /tmp/release.json)"
-          MAC_DIGEST="$(jq -r '.assets[] | select(.name=="cap-macOS") | .digest' /tmp/release.json)"
+          MAC_API_URL="$(jq -r '.assets[] | select(.name=="cap-macOS") | (.url // .apiUrl // empty)' /tmp/release.json)"
+          MAC_DIGEST="$(jq -r '.assets[] | select(.name=="cap-macOS") | (.digest // empty)' /tmp/release.json)"
           MAC_SHA="${MAC_DIGEST#sha256:}"
+          CHECKSUMS_API_URL="$(jq -r '.assets[] | select(.name=="SHA256SUMS") | (.url // .apiUrl // empty)' /tmp/release.json)"
 
           if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "null" ]; then
             echo "Missing tag_name in release payload."
             exit 1
           fi
-          if [ -z "$MAC_API_URL" ] || [ "$MAC_API_URL" = "null" ]; then
+          if [ -z "$MAC_API_URL" ]; then
             echo "Release ${TAG_NAME} is missing asset cap-macOS."
+            echo "Available assets:"
+            jq -r '.assets[].name' /tmp/release.json || true
             exit 1
           fi
-          if [ -z "$MAC_SHA" ] || [ "$MAC_SHA" = "null" ] || [ "$MAC_SHA" = "$MAC_DIGEST" ]; then
-            echo "Release ${TAG_NAME} is missing sha256 digest for cap-macOS."
-            exit 1
+
+          if [ -z "$MAC_SHA" ] || [ "$MAC_SHA" = "$MAC_DIGEST" ]; then
+            if [ -z "$CHECKSUMS_API_URL" ]; then
+              echo "Release ${TAG_NAME} is missing both cap-macOS digest and SHA256SUMS."
+              exit 1
+            fi
+
+            curl -fsSL \
+              -H "Accept: application/octet-stream" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$CHECKSUMS_API_URL" > /tmp/SHA256SUMS
+
+            MAC_SHA="$(awk '$2=="cap-macOS"{print $1}' /tmp/SHA256SUMS | head -n 1)"
+            if [ -z "$MAC_SHA" ]; then
+              echo "Could not find cap-macOS checksum in SHA256SUMS for release ${TAG_NAME}."
+              exit 1
+            fi
           fi
 
           echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
