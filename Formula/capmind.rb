@@ -1,4 +1,4 @@
-class CapMind < Formula
+class Capmind < Formula
   desc "CLI client for capmind"
   homepage "https://github.com/huyixi/capmind"
   url "https://github.com/huyixi/capmind/releases/download/cli-v0.2.4/cap-macOS"
