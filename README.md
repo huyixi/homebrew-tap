@@ -1,12 +1,12 @@
 # homebrew-tap
 
-Homebrew tap for `cap-mind` CLI.
+Homebrew tap for `capmind` CLI.
 
 ## Install
 
 ```bash
 brew tap huyixi/tap
-brew install cap-mind
+brew install capmind
 ```
 
 ## Binary names
@@ -14,20 +14,20 @@ brew install cap-mind
 The formula installs:
 
 - `cap` (primary executable)
-- `cap-mind` (symlink to `cap`)
+- `capmind` (symlink to `cap`)
 
 ## Verify
 
 ```bash
 cap --version
-cap-mind --version
+capmind --version
 ```
 
 ## Upgrade
 
 ```bash
 brew update
-brew upgrade cap-mind
+brew upgrade capmind
 ```
 
 ## Current platform support
@@ -38,5 +38,5 @@ brew upgrade cap-mind
 
 ## Auto update workflow
 
-This repo includes `.github/workflows/update-cap-mind.yml` to open/update a PR
-that bumps `Formula/cap-mind.rb` from the latest `huyixi/cap-mind` release.
+This repo includes `.github/workflows/update-capmind.yml` to open/update a PR
+that bumps `Formula/capmind.rb` from the latest `huyixi/capmind` release.

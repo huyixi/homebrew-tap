@@ -1,4 +1,4 @@
-name: update-cap-mind
+name: update-capmind
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
         type: string
   repository_dispatch:
     types:
-      - cap-mind-release
+      - capmind-release
 
 permissions:
   contents: write
@@ -40,9 +40,9 @@ jobs:
           fi
 
           if [ -n "$TAG" ]; then
-            API_PATH="repos/huyixi/cap-mind/releases/tags/${TAG}"
+            API_PATH="repos/huyixi/capmind/releases/tags/${TAG}"
           else
-            API_PATH="repos/huyixi/cap-mind/releases/latest"
+            API_PATH="repos/huyixi/capmind/releases/latest"
           fi
 
           gh api -H "Accept: application/vnd.github+json" "$API_PATH" > /tmp/release.json
@@ -101,8 +101,8 @@ jobs:
 
           formula = <<~FORMULA
             class CapMind < Formula
-              desc "CLI client for cap-mind"
-              homepage "https://github.com/huyixi/cap-mind"
+              desc "CLI client for capmind"
+              homepage "https://github.com/huyixi/capmind"
               url "#{mac_url}"
               version "#{version}"
               sha256 "#{mac_sha}"
@@ -112,7 +112,7 @@ jobs:
 
               def install
                 bin.install "cap-macOS" => "cap"
-                bin.install_symlink "cap" => "cap-mind"
+                bin.install_symlink "cap" => "capmind"
               end
 
               test do
@@ -122,17 +122,17 @@ jobs:
             end
           FORMULA
 
-          File.write("Formula/cap-mind.rb", formula)
+          File.write("Formula/capmind.rb", formula)
           RUBY
 
-          if git diff --quiet -- Formula/cap-mind.rb; then
+          if git diff --quiet -- Formula/capmind.rb; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Validate formula syntax
-        run: ruby -c Formula/cap-mind.rb
+        run: ruby -c Formula/capmind.rb
 
       - name: Run brew checks when available
         run: |
@@ -141,7 +141,7 @@ jobs:
             echo "brew not found on runner, skipping brew style/audit."
             exit 0
           fi
-          brew style Formula/cap-mind.rb
+          brew style Formula/capmind.rb
           if brew tap | grep -qx "huyixi/tap"; then
             brew untap huyixi/tap
           fi
@@ -152,11 +152,11 @@ jobs:
         if: steps.write_formula.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          branch: chore/bump-cap-mind-${{ steps.release.outputs.version }}
-          title: "chore: bump cap-mind to ${{ steps.release.outputs.tag }}"
-          commit-message: "chore: bump cap-mind to ${{ steps.release.outputs.tag }}"
+          branch: chore/bump-capmind-${{ steps.release.outputs.version }}
+          title: "chore: bump capmind to ${{ steps.release.outputs.tag }}"
+          commit-message: "chore: bump capmind to ${{ steps.release.outputs.tag }}"
           body: |
-            Automated formula update from `huyixi/cap-mind` release `${{ steps.release.outputs.tag }}`.
+            Automated formula update from `huyixi/capmind` release `${{ steps.release.outputs.tag }}`.
 
             Updated fields:
             - `version`
