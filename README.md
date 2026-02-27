@@ -34,7 +34,7 @@ brew upgrade capmind
 
 - macOS arm64 (Apple Silicon)
 
-`cap-macOS` in upstream release `cli-v0.2.4` is arm64-only.
+`capmind-macOS` in upstream release tags `capmind-v*` is arm64-only.
 
 ## Auto update workflow
 

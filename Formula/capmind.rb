@@ -9,7 +9,7 @@ class Capmind < Formula
   depends_on :macos
 
   def install
-    bin.install "cap-macOS" => "cap"
+    bin.install "capmind-macOS" => "cap"
     bin.install_symlink "cap" => "capmind"
   end
 

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to sync (for example: cli-v0.2.4). Empty means latest."
+        description: "Release tag to sync (for example: capmind-v0.2.9). Empty means latest."
         required: false
         type: string
   repository_dispatch:
@@ -39,6 +39,11 @@ jobs:
             TAG="${PAYLOAD_TAG:-}"
           fi
 
+          if [ -n "$TAG" ] && [[ "$TAG" != capmind-v* ]]; then
+            echo "Invalid tag: $TAG (expected prefix capmind-v)."
+            exit 1
+          fi
+
           if [ -n "$TAG" ]; then
             API_PATH="repos/huyixi/capmind/releases/tags/${TAG}"
           else
@@ -48,9 +53,9 @@ jobs:
           gh api -H "Accept: application/vnd.github+json" "$API_PATH" > /tmp/release.json
 
           TAG_NAME="$(jq -r '.tag_name' /tmp/release.json)"
-          VERSION="${TAG_NAME#cli-v}"
-          MAC_URL="$(jq -r '.assets[] | select(.name=="cap-macOS") | (.browser_download_url // empty)' /tmp/release.json)"
-          MAC_DIGEST="$(jq -r '.assets[] | select(.name=="cap-macOS") | (.digest // empty)' /tmp/release.json)"
+          VERSION="${TAG_NAME#capmind-v}"
+          MAC_URL="$(jq -r '.assets[] | select(.name=="capmind-macOS") | (.browser_download_url // empty)' /tmp/release.json)"
+          MAC_DIGEST="$(jq -r '.assets[] | select(.name=="capmind-macOS") | (.digest // empty)' /tmp/release.json)"
           MAC_SHA="${MAC_DIGEST#sha256:}"
           CHECKSUMS_URL="$(jq -r '.assets[] | select(.name=="SHA256SUMS") | (.browser_download_url // empty)' /tmp/release.json)"
 
@@ -58,8 +63,12 @@ jobs:
             echo "Missing tag_name in release payload."
             exit 1
           fi
+          if [[ "$TAG_NAME" != capmind-v* ]]; then
+            echo "Unsupported release tag: $TAG_NAME (expected capmind-v*)."
+            exit 1
+          fi
           if [ -z "$MAC_URL" ]; then
-            echo "Release ${TAG_NAME} is missing asset cap-macOS."
+            echo "Release ${TAG_NAME} is missing asset capmind-macOS."
             echo "Available assets:"
             jq -r '.assets[].name' /tmp/release.json || true
             exit 1
@@ -67,15 +76,15 @@ jobs:
 
           if [ -z "$MAC_SHA" ] || [ "$MAC_SHA" = "$MAC_DIGEST" ]; then
             if [ -z "$CHECKSUMS_URL" ]; then
-              echo "Release ${TAG_NAME} is missing both cap-macOS digest and SHA256SUMS."
+              echo "Release ${TAG_NAME} is missing both capmind-macOS digest and SHA256SUMS."
               exit 1
             fi
 
             curl -fsSL "$CHECKSUMS_URL" > /tmp/SHA256SUMS
 
-            MAC_SHA="$(awk '$2=="cap-macOS"{print $1}' /tmp/SHA256SUMS | head -n 1)"
+            MAC_SHA="$(awk '$2=="capmind-macOS"{print $1}' /tmp/SHA256SUMS | head -n 1)"
             if [ -z "$MAC_SHA" ]; then
-              echo "Could not find cap-macOS checksum in SHA256SUMS for release ${TAG_NAME}."
+              echo "Could not find capmind-macOS checksum in SHA256SUMS for release ${TAG_NAME}."
               exit 1
             fi
           fi
@@ -100,7 +109,7 @@ jobs:
           mac_sha = ENV.fetch("MAC_SHA")
 
           formula = <<~FORMULA
-            class CapMind < Formula
+            class Capmind < Formula
               desc "CLI client for capmind"
               homepage "https://github.com/huyixi/capmind"
               url "#{mac_url}"
@@ -111,7 +120,7 @@ jobs:
               depends_on :macos
 
               def install
-                bin.install "cap-macOS" => "cap"
+                bin.install "capmind-macOS" => "cap"
                 bin.install_symlink "cap" => "capmind"
               end
 
