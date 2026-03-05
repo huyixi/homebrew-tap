@@ -1,9 +1,9 @@
 class Capmind < Formula
   desc "CLI client for capmind"
   homepage "https://github.com/huyixi/capmind"
-  url "https://github.com/huyixi/capmind/releases/download/capmind-v0.6.0/capmind-macOS"
-  version "0.6.0"
-  sha256 "c8d02d202fb47fb3432f22d6553866c10466553cfb862d4e9f12fd5a4fb82963"
+  url "https://github.com/huyixi/capmind/releases/download/capmind-v0.7.0/capmind-macOS"
+  version "0.7.0"
+  sha256 "7a6812907877cb3e199ce7af69e4be8c18c2e1cb1d5a4bf9ec0a894aa92d1c76"
 
   depends_on arch: :arm64
   depends_on :macos
